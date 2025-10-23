@@ -1,0 +1,5 @@
+# Direktori yang dihasilkan oleh Node
+node_modules
+
+# File yang dihasilkan oleh NPM
+npm-debug.log
