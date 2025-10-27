@@ -1,58 +1,106 @@
-// // server.js
-
-// // 1. Impor Express
-// const express = require('express');
-
-// // 2. Buat instance aplikasi Express
-// const app = express();
-// const port = 3000; // Tentukan port server Anda
-
-// // 3. Definisikan Route (Rute) Pertama
-// // Route ini akan menangani permintaan HTTP GET ke alamat dasar (root: /)
-// app.get('/', (req, res) => {
-//     // res.send() mengirim respons kembali ke client (browser)
-//     res.send('Halo Dunia! Ini Server Express Pertama Saya!');
-// });
-
-// // 4. Jalankan Server
-// app.listen(port, () => {
-//     console.log(`Server sedang berjalan di http://localhost:${port}`);
-//     console.log('Tekan Ctrl+C untuk menghentikan server.');
-// });
-
-
-// server.js (di bagian atas)
+const express = require('express');
 const app = express();
+const port = 8080;
+const connectDB = require('./db'); // Impor fungsi koneksi
+const Pengguna = require('./models/Pengguna'); // Impor Model
 
-// Middleware: Ini memungkinkan Express membaca JSON yang dikirimkan di body request
-app.use(express.json()); 
+// Jalankan koneksi database
+connectDB();
 
-const port = 3000;
-// ... (lanjutan kode)
+// Middleware penting untuk membaca JSON body
+app.use(express.json());
+// ... (kode port dan listen di bawah)
+
 // server.js (lanjutan)
 
-// Definisikan array data sederhana (simulasi database)
-let daftarPengguna = [
-    { id: 1, nama: 'Budi' },
-    { id: 2, nama: 'Ani' }
-];
-
-// Rute GET untuk mengambil SEMUA pengguna
-app.get('/pengguna', (req, res) => {
-    // Express otomatis mengkonversi objek JavaScript menjadi JSON
-    res.json(daftarPengguna); 
+// Rute GET untuk mengambil SEMUA pengguna dari database
+app.get('/api/pengguna', async (req, res) => {
+    try {
+        // Pengguna.find({}) akan mengambil semua dokumen
+        const pengguna = await Pengguna.find({});
+        res.status(200).json(pengguna);
+    } catch (err) {
+        res.status(500).json({ error: 'Gagal mengambil data' });
+    }
 });
 
-// Rute GET untuk mengambil pengguna berdasarkan ID (Parameter Routing)
-// :id adalah parameter dinamis yang bisa diakses via req.params
-app.get('/pengguna/:id', (req, res) => {
-    const userId = parseInt(req.params.id); // Ambil ID dari URL
-    const pengguna = daftarPengguna.find(u => u.id === userId);
+// server.js (lanjutan)
 
-    if (pengguna) {
-        res.json(pengguna);
-    } else {
-        res.status(404).send('Pengguna tidak ditemukan.');
+// Rute POST untuk MENAMBAH pengguna baru ke database
+app.post('/api/pengguna', async (req, res) => {
+    try {
+        // Buat instance model baru dari data yang dikirim client (req.body)
+        const penggunaBaru = new Pengguna(req.body);
+
+        // Simpan ke database
+        const hasilSimpan = await penggunaBaru.save();
+
+        res.status(201).json(hasilSimpan);
+    } catch (err) {
+        // Tangani error validasi (misalnya email duplikat)
+        res.status(400).json({ error: err.message });
     }
+});
+
+// server.js (lanjutan)
+
+// Rute PUT untuk MEMPERBARUI Pengguna berdasarkan ID
+app.put('/api/pengguna/:id', async (req, res) => {
+    try {
+        const id = req.params.id;
+        const dataUpdate = req.body;
+
+        // Gunakan findByIdAndUpdate:
+        // 1. ID dokumen
+        // 2. Data yang akan diperbarui (req.body)
+        // 3. Opsi: { new: true } mengembalikan dokumen yang SUDAH diperbarui
+        const penggunaDiperbarui = await Pengguna.findByIdAndUpdate(id, dataUpdate, { new: true, runValidators: true });
+
+        // Cek apakah dokumen ditemukan sebelum diperbarui
+        if (!penggunaDiperbarui) {
+            return res.status(404).json({ error: 'Pengguna tidak ditemukan.' });
+        }
+
+        res.status(200).json(penggunaDiperbarui);
+    } catch (err) {
+        // Tangani error jika ID tidak valid atau validasi gagal
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// server.js (lanjutan)
+
+// Rute DELETE untuk MENGHAPUS Pengguna berdasarkan ID
+app.delete('/api/pengguna/:id', async (req, res) => {
+    try {
+        const id = req.params.id;
+
+        // Gunakan findByIdAndDelete untuk mencari dan menghapus dokumen
+        const penggunaDihapus = await Pengguna.findByIdAndDelete(id);
+
+        if (!penggunaDihapus) {
+            return res.status(404).json({ error: 'Pengguna tidak ditemukan.' });
+        }
+
+        // Respon sukses tanpa konten (204 No Content)
+        res.status(204).send();
+    } catch (err) {
+        // Tangani error server atau ID yang salah format
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// server.js (Bagian Akhir, sebelum app.listen)
+
+// ... (semua route Anda di sini: app.use('/api/pengguna', penggunaRoutes);)
+
+// 4. Impor dan Gunakan Error Handler
+const errorHandler = require('./middleware/errorHandler');
+app.use(errorHandler); // ⬅️ Ini harus diletakkan PALING BAWAH
+// (setelah semua app.use dan app.get/post/dll.)
+
+// 5. Jalankan Server
+app.listen(port, () => {
+    console.log(`✅ Server berjalan di http://localhost:${port}`);
 });
 
