@@ -27,18 +27,43 @@ app.get('/api/pengguna', async (req, res) => {
 // server.js (lanjutan)
 
 // Rute POST untuk MENAMBAH pengguna baru ke database
-app.post('/api/pengguna', async (req, res) => {
+// server.js (di bagian ROUTE CRUD)
+
+// Rute POST untuk REGISTRASI Pengguna BARU
+app.post('/api/pengguna/register', async (req, res, next) => {
+    const { nama, email, password } = req.body;
+
     try {
-        // Buat instance model baru dari data yang dikirim client (req.body)
-        const penggunaBaru = new Pengguna(req.body);
+        // 1. Cek apakah pengguna sudah ada
+        let userExists = await Pengguna.findOne({ email });
 
-        // Simpan ke database
-        const hasilSimpan = await penggunaBaru.save();
+        if (userExists) {
+            res.status(400);
+            throw new Error('Pengguna dengan email ini sudah terdaftar.');
+        }
 
-        res.status(201).json(hasilSimpan);
+        // 2. Buat pengguna baru (password akan otomatis di-hash oleh pre-save middleware)
+        const penggunaBaru = await Pengguna.create({
+            nama,
+            email,
+            password, 
+        });
+
+        // 3. Kirim respons sukses dan token JWT
+        if (penggunaBaru) {
+            res.status(201).json({
+                _id: penggunaBaru._id,
+                nama: penggunaBaru.nama,
+                email: penggunaBaru.email,
+                token: penggunaBaru.generateToken(), // ⬅️ Membuat token
+            });
+        } else {
+            res.status(400);
+            throw new Error('Data pengguna tidak valid.');
+        }
+
     } catch (err) {
-        // Tangani error validasi (misalnya email duplikat)
-        res.status(400).json({ error: err.message });
+        next(err);
     }
 });
 
@@ -103,4 +128,35 @@ app.use(errorHandler); // ⬅️ Ini harus diletakkan PALING BAWAH
 app.listen(port, () => {
     console.log(`✅ Server berjalan di http://localhost:${port}`);
 });
+
+// server.js (di bagian ROUTE CRUD)
+
+// Rute POST untuk LOGIN Pengguna
+app.post('/api/pengguna/login', async (req, res, next) => {
+    const { email, password } = req.body;
+
+    try {
+        // 1. Cari pengguna berdasarkan email
+        const pengguna = await Pengguna.findOne({ email });
+
+        // 2. Cek apakah pengguna ada DAN password cocok
+        if (pengguna && (await pengguna.matchPassword(password))) {
+            // Login sukses, kirim token
+            res.json({
+                _id: pengguna._id,
+                nama: pengguna.nama,
+                email: pengguna.email,
+                token: pengguna.generateToken(), // ⬅️ Membuat token
+            });
+        } else {
+            res.status(401); // Unauthorized
+            throw new Error('Email atau password tidak valid.');
+        }
+
+    } catch (err) {
+        next(err);
+    }
+});
+
+//nambah comment aja
 
